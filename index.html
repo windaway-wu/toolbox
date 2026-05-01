@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>PDF Master | 專業影像工具</title>
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    
+    <style>
+        :root {
+            --bg: #0c0c0e;
+            --sidebar-bg: rgba(24, 24, 27, 0.8);
+            --card-bg: #1e1e22;
+            --accent: #80d9ff; 
+            --accent-glow: rgba(128, 217, 255, 0.2);
+            --brand-red: #D40000;
+            --text-main: #f4f4f5;
+            --text-dim: #a1a1aa;
+            --border: rgba(255, 255, 255, 0.12);
+            --radius-lg: 18px;
+            --radius-md: 12px;
+        }
+
+        body { 
+            font-family: 'Inter', -apple-system, "Microsoft JhengHei", sans-serif; 
+            background: var(--bg); 
+            color: var(--text-main); 
+            margin: 0; 
+            display: flex; 
+            flex-direction: column; 
+            height: 100vh; 
+            overflow: hidden;
+            background-image: radial-gradient(circle at 50% -20%, #1e293b 0%, var(--bg) 80%);
+        }
+
+        header { 
+            padding: 0.8rem 2.5rem; 
+            background: rgba(12, 12, 14, 0.6);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            z-index: 100;
+        }
+
+        .f1-style { font-family: "Arial Black", sans-serif; font-style: italic; display: inline-block; transform: skewX(-12deg); letter-spacing: -0.5px; text-transform: lowercase; }
+        .brand-title { color: var(--accent); font-size: 1.4rem; font-weight: 900; text-shadow: 0 0 12px var(--accent-glow); }
+        .brand-suffix { color: var(--text-main); font-size: 1rem; font-weight: 500; opacity: 0.8; margin-left: 8px; }
+
+        main { flex: 1; display: flex; overflow: hidden; position: relative; }
+
+        .sidebar { 
+            width: 300px; 
+            background: var(--sidebar-bg); 
+            backdrop-filter: blur(25px);
+            border-right: 1px solid var(--border); 
+            padding: 2rem 1.5rem; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 1.5rem; 
+            z-index: 20; 
+        }
+
+        #dropZone { 
+            flex: 1; 
+            padding: 2.5rem; 
+            overflow-y: auto; 
+            display: grid; 
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); 
+            gap: 2.5rem; 
+            align-content: start;
+        }
+
+        .page-item { 
+            background: var(--card-bg); 
+            border-radius: var(--radius-lg); 
+            padding: 12px; 
+            border: 1px solid var(--border); 
+            position: relative; 
+            cursor: grab; 
+            transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+        }
+        .page-item:hover { border-color: var(--accent); transform: translateY(-6px); }
+        .page-item canvas { width: 100%; border-radius: 8px; background: white; pointer-events: none; }
+
+        .btn { 
+            background: var(--accent); 
+            color: #000; 
+            border: none; 
+            padding: 1rem; 
+            border-radius: var(--radius-md); 
+            font-weight: 700; 
+            cursor: pointer; 
+            transition: 0.25s; 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .btn:hover { filter: brightness(1.1); box-shadow: 0 5px 15px var(--accent-glow); }
+        .btn-img { background: transparent; border: 1.5px solid rgba(255, 159, 10, 0.4); color: #ff9f0a; }
+
+        .group-label { font-size: 0.75rem; color: var(--text-dim); font-weight: 600; text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: -0.5rem; }
+        
+        .control-input { 
+            background: #27272a; 
+            border: 1px solid var(--border); 
+            color: #ffffff; 
+            padding: 12px; 
+            border-radius: var(--radius-md); 
+            font-size: 14px;
+            cursor: pointer;
+            outline: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 16px;
+        }
+
+        .page-controls { position: absolute; top: 8px; right: 8px; display: flex; gap: 6px; opacity: 0; transition: 0.2s; z-index: 10; }
+        .page-item:hover .page-controls { opacity: 1; }
+        .mini-btn { 
+            width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border); 
+            background: rgba(0, 0, 0, 0.8); color: white; cursor: pointer; 
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        /* --- 聯名標誌視覺修正 --- */
+        .copyright { 
+            margin-top: auto; 
+            padding-top: 1.5rem; 
+            border-top: 1px solid var(--border); 
+            text-align: center; 
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+        .collab-row { display: flex; align-items: center; justify-content: center; gap: 10px; }
+        .gemini-text {
+            background: linear-gradient(90deg, #4285f4, #9b72cb, #d96570, #f4af60);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 700; font-size: 14px;
+        }
+        .gemini-sparkle {
+            width: 14px; height: 14px; margin-right: 6px;
+            background: linear-gradient(135deg, #4285f4, #9b72cb, #d96570);
+            clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+        }
+        .brand-name { color: var(--brand-red) !important; font-weight: 800; font-size: 14px; line-height: 1; }
+        .collab-x { color: #d1d5db; opacity: 0.8; font-size: 12px; font-weight: 300; } /* 修正：提高亮度 */
+
+        #emptyHint { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: var(--text-dim); pointer-events: none; }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="logo-group">
+        <span class="f1-style brand-title">pdf master</span>
+        <span class="f1-style brand-suffix">ultra pro</span>
+    </div>
+    <button class="btn" style="width: auto; padding: 0.6rem 2rem; font-size: 14px;" onclick="document.getElementById('fileInput').click()">
+        <span>＋</span> 載入檔案
+    </button>
+</header>
+
+<main>
+    <aside class="sidebar">
+        <div class="group-label">PDF 匯出優化</div>
+        <select id="compressionLevel" class="control-input">
+            <option value="none">原始畫質 (無損)</option>
+            <option value="medium">平衡模式 (建議使用)</option>
+            <option value="high">最小體積 (強力壓縮)</option>
+        </select>
+        <button class="btn" onclick="exportFinalPDF()">儲存 PDF 文件</button>
+        
+        <div class="group-label" style="margin-top: 1rem;">影像轉檔設定</div>
+        <select id="imgQuality" class="control-input">
+            <option value="2.5">極致清晰 (300 DPI)</option>
+            <option value="1.5" selected>標準影像 (150 DPI)</option>
+            <option value="0.8">快速預覽 (72 DPI)</option>
+        </select>
+        <button class="btn btn-img" onclick="exportAsImages()">📸 轉存高清圖片</button>
+
+        <div class="copyright">
+            <div style="font-size: 9px; letter-spacing: 2px; opacity: 0.4;">技術支援</div>
+            <div class="collab-row">
+                <span class="f1-style brand-name">windaway</span>
+                <span class="collab-x">×</span>
+                <div style="display: flex; align-items: center;">
+                    <div class="gemini-sparkle"></div>
+                    <span class="gemini-text">Gemini AI</span>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <div id="dropZone">
+        <div id="emptyHint">
+            <div style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.15;">✦</div>
+            <h2 style="font-weight: 300; letter-spacing: 5px;">編輯工作區</h2>
+        </div>
+    </div>
+</main>
+
+<input type="file" id="fileInput" multiple accept=".pdf, .jpg, .jpeg, .png" style="display:none;">
+
+<script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+    let allPages = [];
+    const dropZone = document.getElementById('dropZone');
+
+    window.addEventListener('dragover', (e) => e.preventDefault());
+    window.addEventListener('drop', (e) => e.preventDefault());
+    dropZone.addEventListener('drop', (e) => handleFiles(e.dataTransfer.files));
+    document.getElementById('fileInput').onchange = (e) => handleFiles(e.target.files);
+
+    async function handleFiles(files) {
+        if (files.length > 0) document.getElementById('emptyHint').style.display = 'none';
+        for (const file of files) {
+            if (file.type === 'application/pdf') {
+                const arrayBuffer = await file.arrayBuffer();
+                const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+                const pdfJsDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                for (let i = 0; i < pdfDoc.getPageCount(); i++) {
+                    addPageToUI({ id: Math.random().toString(36).substr(2,9), type: 'pdf', source: pdfDoc, index: i, name: file.name, rawDoc: pdfJsDoc });
+                }
+            } else if (file.type.startsWith('image/')) {
+                const imgData = await file.arrayBuffer();
+                addPageToUI({ id: Math.random().toString(36).substr(2,9), type: 'image', source: imgData, name: file.name, mime: file.type });
+            }
+        }
+    }
+
+    function addPageToUI(data) {
+        data.rotation = 0;
+        allPages.push(data);
+        const div = document.createElement('div');
+        div.className = 'page-item';
+        div.dataset.id = data.id;
+        div.innerHTML = `
+            <div class="page-controls">
+                <button class="mini-btn" onclick="rotate('${data.id}')">↻</button>
+                <button class="mini-btn" onclick="remove('${data.id}')">✕</button>
+            </div>
+            <canvas id="cvs-${data.id}"></canvas>
+            <div style="font-size:10px; color:var(--text-dim); text-align:center; margin-top:8px; overflow:hidden; text-overflow:ellipsis;">${data.name}</div>
+        `;
+        dropZone.appendChild(div);
+        data.type === 'pdf' ? renderPdfThumb(data) : renderImgThumb(data);
+    }
+
+    async function renderPdfThumb(p) {
+        const page = await p.rawDoc.getPage(p.index + 1);
+        const canvas = document.getElementById(`cvs-${p.id}`);
+        const viewport = page.getViewport({ scale: 0.5 });
+        canvas.width = viewport.width; canvas.height = viewport.height;
+        await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    }
+
+    function renderImgThumb(p) {
+        const canvas = document.getElementById(`cvs-${p.id}`);
+        const ctx = canvas.getContext('2d');
+        const img = new Image();
+        img.onload = () => { canvas.width = 200; canvas.height = 280; ctx.drawImage(img,0,0,200,280); };
+        img.src = URL.createObjectURL(new Blob([p.source]));
+    }
+
+    function rotate(id) {
+        const p = allPages.find(x => x.id === id);
+        p.rotation = (p.rotation + 90) % 360;
+        document.getElementById(`cvs-${id}`).style.transform = `rotate(${p.rotation}deg)`;
+    }
+
+    function remove(id) {
+        allPages = allPages.filter(x => x.id !== id);
+        document.querySelector(`[data-id="${id}"]`).remove();
+        if (!allPages.length) document.getElementById('emptyHint').style.display = 'block';
+    }
+
+    new Sortable(dropZone, { animation: 400 });
+
+    async function exportFinalPDF() {
+        if (!allPages.length) return;
+        const merged = await PDFLib.PDFDocument.create();
+        for (const p of allPages) {
+            let page;
+            if (p.type === 'pdf') {
+                [page] = await merged.copyPages(p.source, [p.index]);
+                merged.addPage(page);
+            } else {
+                const img = p.mime === 'image/png' ? await merged.embedPng(p.source) : await merged.embedJpg(p.source);
+                page = merged.addPage([img.width, img.height]);
+                page.drawImage(img, { x: 0, y: 0, width: img.width, height: img.height });
+            }
+            page.setRotation(PDFLib.degrees(page.getRotation().angle + p.rotation));
+        }
+        const bytes = await merged.save({ useObjectStreams: true });
+        const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([bytes])); a.download = "PDF_Export.pdf"; a.click();
+    }
+
+    async function exportAsImages() {
+        if (!allPages.length) return;
+        const scale = parseFloat(document.getElementById('imgQuality').value);
+        for (let i = 0; i < allPages.length; i++) {
+            const item = allPages[i];
+            let url;
+            if (item.type === 'pdf') {
+                const page = await item.rawDoc.getPage(item.index + 1);
+                const viewport = page.getViewport({ scale: scale, rotation: item.rotation });
+                const offCanvas = document.createElement('canvas');
+                offCanvas.width = viewport.width; offCanvas.height = viewport.height;
+                await page.render({ canvasContext: offCanvas.getContext('2d'), viewport }).promise;
+                url = offCanvas.toDataURL("image/jpeg", 0.9);
+            } else {
+                url = URL.createObjectURL(new Blob([item.source]));
+            }
+            const a = document.createElement('a'); a.href = url; a.download = `Page_${i+1}.jpg`; a.click();
+            await new Promise(r => setTimeout(r, 200));
+        }
+    }
+</script>
+</body>
+</html>
